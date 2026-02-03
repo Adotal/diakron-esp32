@@ -30,91 +30,6 @@ const char *PASW = "F3W411WTET";
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
-const char index_html[] PROGMEM =
-	R"rawliteral(
-<!DOCTYPE HTML><html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { text-align:center; }
-    .vert { margin-bottom: 10%; }
-    .hori{ margin-bottom: 0%; }
-  </style>
-</head>
-<body>
-	<div id="container">
-	<h3>AI Result</h3>
-	<p id="result">Waiting...</p>
-
-    <h2>ESP32-CAM Last Photo</h2>
-    <p>It might take more than 5 seconds to capture a photo.</p>
-    <p>
-      <button onclick="capturePhoto()">CAPTURE PHOTO</button>
-    </p>
-  </div>
-  <div><img src="" id="photo" width="70%"></div>
-</body>
-<script>
-
-let gateway = `ws://${window.location.hostname}/ws`;
-let websocket;
-window.addEventListener('load', onload);
-
-function onload(event) {
-    initWebSocket();
-}
-
-function initWebSocket() {
-    console.log('Trying to open a WebSocket connection…');
-    websocket = new WebSocket(gateway);
-    websocket.onopen = onOpen;
-    websocket.onclose = onClose;
-    websocket.onmessage = onMessage;
-}
-
-function onOpen(event) {
-    console.log('Connection opened');
-}
-
-function onClose(event) {
-    console.log('Connection closed');
-    setTimeout(initWebSocket, 2000);
-}
-  
-function capturePhoto() {
-	websocket.send("CAPT");
-}
-
-function onMessage(event) {
-
-    // If it's binary → image
-    if (event.data instanceof Blob) {
-        const img = document.getElementById("photo");
-
-        // Release previous image (important for memory)
-        if (img.src) {
-            URL.revokeObjectURL(img.src);
-        }
-
-    	console.log("New img");
-        const url = URL.createObjectURL(event.data);
-        img.src = url;
-        return;
-    } else if (event.data.startsWith('{"')) {
-      document.getElementById("result").innerText =
-        event.data;
-	} else {
-      document.getElementById("result").innerText += "\n" +
-        event.data;
-
-	}
-
-    // Otherwise it's text
-    console.log("WS:", event.data);
-}
-</script>
-</html>)rawliteral";
-
 // --------------------------CAMERA CONFIG------------------
 // OV2640 camera module
 
@@ -350,8 +265,14 @@ void sendPhotoToBackend(camera_fb_t *fb)
 
 void sendPhotoToWebSocket(camera_fb_t *fb)
 {
+	// Notify that is sending an IMAGE
+	// ws.textAll("IMG_BEGIN");
+
 	// Send JPEG buffer as binary WS frame
 	ws.binaryAll(fb->buf, fb->len);
+	
+	// NOtiify end of IMAGE
+	// ws.textAll("IMG_END");
 }
 
 esp_err_t cameraCapture()
@@ -436,10 +357,6 @@ void setup()
 
 	initWiFi();
 	initWebSocket();
-
-	// Route for root / web page
-	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-			  { request->send(200, "text/html", index_html); });
 
 	// Start server
 	server.begin();
