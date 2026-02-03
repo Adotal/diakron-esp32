@@ -3,20 +3,28 @@
 #include <Arduino.h>
 #include "esp_camera.h"
 #include "WiFi.h"
+// For websocket
 #include "AsyncTCP.h"
 #include "ESPAsyncWebServer.h"
+// To backend request
 #include "HTTPClient.h"
+// To parse backend response
+#include "ArduinoJson.h"
 
+// PINS DEFINITION
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
+
+#define GPIO_CAPC 12
+#define GPIO_INDU 13
 
 // ------------------------------CONSTANTS------------------
 String lastPrediction;
 const char *backendURL = "https://diakron-backend.onrender.com/analyze";
 
 // Acces Point credentials
-const char *SSID = "PWLAN_1";
-const char *PASW = "244466666";
+const char *SSID = "TOTALPLAY_E81F9F";
+const char *PASW = "F3W411WTET";
 
 // Init wifi server port 80
 AsyncWebServer server(80);
@@ -95,6 +103,10 @@ function onMessage(event) {
     } else if (event.data.startsWith('{"')) {
       document.getElementById("result").innerText =
         event.data;
+	} else {
+      document.getElementById("result").innerText += "\n" +
+        event.data;
+
 	}
 
     // Otherwise it's text
@@ -142,15 +154,32 @@ static camera_config_t camera_config = {
 	.grab_mode = CAMERA_GRAB_WHEN_EMPTY};
 
 //-----------------GLOBA VARIABLES-------------------------
+
+bool inductivo = false;
+bool capacitivo = false;
 bool takeNewPhoto = false;
+
+// Set your Static IP address
+IPAddress local_IP(192, 168, 100, 128);
+// Set your Gateway IP address
+IPAddress gateway(192, 168, 100, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8);
+IPAddress secondaryDNS(8, 8, 4, 4);
 
 // ----------------------FUNCTIONS--------------------------
 
 // Initialize WiFi
 void initWiFi()
 {
-	WiFi.mode(WIFI_STA);
 
+	// Configures static IP address
+	if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+	{
+		Serial.println("STA Failed to configure");
+	}
+
+	// WiFi.mode(WIFI_STA);
 	WiFi.begin(SSID, PASW);
 	Serial.print("Connecting to WiFi ..");
 	while (WiFi.status() != WL_CONNECTED)
@@ -263,15 +292,14 @@ void initWebSocket()
 void sendPhotoToBackend(camera_fb_t *fb)
 {
 
-	// WiFiClientSecure client;
-	// client.setInsecure(); // Nota: En producción usa certificados
+	WiFiClientSecure client;
+	client.setInsecure(); // Nota: En producción usa certificados
 	// Añadir en http.begin(client, backendURL)
 
 	HTTPClient http;
-	http.begin(backendURL);
+	http.begin(client, backendURL);
 	http.addHeader("Content-Type", "image/jpeg");
-	http.setTimeout(4000);  // 4 seconds max to receive backend answer
-
+	http.setTimeout(4000); // 4 seconds max to receive backend answer
 
 	Serial.printf("Enviando %d bytes al backend...\n", fb->len);
 	// Enviamos el buffer directamente de la RAM de la cámara
@@ -283,6 +311,16 @@ void sendPhotoToBackend(camera_fb_t *fb)
 		Serial.println("Backend Response: " + lastPrediction);
 		// Send response to websocket
 		notifyClients(lastPrediction);
+
+		// const char *lastJSON = lastPrediction.c_str();
+		// // Identify materia type
+		// cJSON *jsonRoot = cJSON_Parse(lastJSON);
+		// if (jsonRoot == NULL)
+		// {
+		// 	printf("Error before: %s\n", cJSON_GetErrorPtr());
+		// 	return;
+		// }
+		// cJSON *jsonmateriaType = cJSON_GetArrayItem(jsonRoot, 2);
 	}
 	else
 	{
@@ -342,12 +380,59 @@ esp_err_t cameraCapture()
 	return ESP_OK;
 }
 
+// Compare sensor with AI model and select a type
+void selectFinalM()
+{
+	// void readSensors();
+
+	inductivo = !digitalRead(GPIO_INDU);
+	capacitivo = !digitalRead(GPIO_CAPC);
+	notifyClients("INDU: " + String(inductivo));
+	notifyClients("CAPC: " + String(capacitivo));
+
+	// GET MATERIA TYPE
+	JsonDocument doc;
+	deserializeJson(doc, lastPrediction);
+	String materiaType = doc["predicted"];
+
+	if (inductivo || materiaType.equals("metal"))
+	{
+
+		Serial.println("METAL");
+		notifyClients("METAL");
+	}
+	else if ((capacitivo && materiaType.equals("glass")) || (capacitivo && materiaType.equals("plastic")))
+	{
+		Serial.println("GLASS");
+		notifyClients("GLASS");
+	}
+	else if (materiaType.equals("plastic") || (materiaType.equals("glass") && !capacitivo))
+	{
+		Serial.println("PLASTIC");
+		notifyClients("PLASTIC");
+	}
+	else if (materiaType.equals("paper") || materiaType.equals("cardboard"))
+	{
+		Serial.println("PAPER/CARDBOARD");
+		notifyClients("PAPER/CARDBOARD");
+	}
+	else
+	{
+		Serial.println("NO SÉ");
+		notifyClients("NO S[E]");
+	}
+}
+
 void setup()
 {
 	Serial.begin(115200);
 
+	// PIN MODES
+	pinMode(GPIO_INDU, INPUT_PULLUP);
+	pinMode(GPIO_CAPC, INPUT_PULLUP);
+
 	if (psramFound)
-		Serial.print("psramFound");
+		Serial.println("psramFound");
 
 	initWiFi();
 	initWebSocket();
@@ -377,8 +462,11 @@ void loop()
 		esp_err_t err = cameraCapture();
 		if (err == ESP_OK)
 		{
-			Serial.print("Photo successfull");
+			Serial.println("Photo successfull");
 		};
+
+		selectFinalM();
+
 		delay(100);
 	}
 
