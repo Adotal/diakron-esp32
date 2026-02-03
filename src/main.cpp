@@ -10,11 +10,14 @@
 #include "HTTPClient.h"
 // To parse backend response
 #include "ArduinoJson.h"
+// For binary payload
+#include "stdint.h"
 
 // PINS DEFINITION
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
+#define BYTES_QR 80
 #define GPIO_CAPC 12
 #define GPIO_INDU 13
 
@@ -68,11 +71,54 @@ static camera_config_t camera_config = {
 	.fb_count = 1,
 	.grab_mode = CAMERA_GRAB_WHEN_EMPTY};
 
-//-----------------GLOBA VARIABLES-------------------------
+//-----------------GLOBAL VARIABLES-------------------------
 
 bool inductivo = false;
 bool capacitivo = false;
 bool takeNewPhoto = false;
+
+
+/*	This array stores the information of trash thrown to show a QR in the
+	HMI, so the user can earn points.
+	Each cell stores 8 bits, 0-255 DEC.
+	Structure (below are the indexes):
+	[M][P][C][G][Timestamp][Nonce][Firm ED25516]
+	 0  1  2  3  4       7  8  15  16        79
+	M, P, C, G are the count of Metal, Plastic, Cardboard/Paper and Glass
+	respectively, detected by the Segregator (Diakron)
+	
+	M			- 1 BYTE
+	P 			- 1 BYTE
+	C			- 1 BYTE
+	G 			- 1 BYTE
+	Timestamp	- 4 BYTE
+	Nonce		- 8 BYTE
+	Firm		- 64 BYTES
+	--------------------------
+	TOTAL		- 80 BYTES
+*/
+uint8_t byteArrayQR[BYTES_QR];
+
+/* This strcuture is made to overlay on byteArrayQR() and write on it
+   in a fast-redable way (before I used directy pointers to the array
+   but it's kind of unsafe and not so redable)
+   The __attribute__((packed)) is to instruct the compiler to minimize
+   the memmory occupied by the structure by removing
+   padding bytes between data
+*/
+
+typedef struct __attribute__((packed)) {
+	uint8_t 	countMetal;        // 0
+	uint8_t 	countPlastic;      // 1
+    uint8_t		countCardPaper;    // 2
+    uint8_t		countGlass;        // 3
+    uint8_t		timestamp[4];         // 4–7
+    uint8_t		nonce[8];          // 8–15
+    uint8_t		signature[64];     // 16–79 (ED25519)
+} qr_payload_t;
+
+// Overlay structure on array, enableing writing on it
+qr_payload_t *payloadQR = (qr_payload_t*) byteArrayQR;
 
 // Set your Static IP address
 IPAddress local_IP(192, 168, 100, 128);
@@ -83,6 +129,10 @@ IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
 
 // ----------------------FUNCTIONS--------------------------
+
+void createSendPayloadQR(){
+
+}
 
 // Initialize WiFi
 void initWiFi()
@@ -105,10 +155,10 @@ void initWiFi()
 	Serial.println(WiFi.localIP());
 }
 
-void notifyClients(String state)
-{
-	ws.textAll(state);
-}
+// void notifyClients(String state)
+// {
+// 	ws.textAll(state);
+// }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 {
@@ -126,34 +176,29 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 		// --------- Detect message type ---------
 		if (msg.startsWith("MOVE:"))
 		{
-
-			// Velocidad es 1 para baja y 2 para alta
-			// dirc es UP o DW
-			// Format: MOVE:dirc&velocidad
-
 			// Obtiene sólo los datos
-			String payload = msg.substring(5);
+			// String payload = msg.substring(5);
 
 			// Obtiene índice del separador &
-			int amp = payload.indexOf("&");
+			// int amp = payload.indexOf("&");
 
-			String direction, velocidad;
-			int velocidad_int;
+			// String direction, velocidad;
+			// int velocidad_int;
 
-			if (amp > 0)
-			{
-				// Obtiene dirección
-				// UP or DW
-				direction = payload.substring(0, amp);
-				// 1 or 2
-				velocidad = payload.substring(amp + 1);
-				velocidad_int = velocidad.toInt();
-			}
+			// if (amp > 0)
+			// {
+			// 	// Obtiene dirección
+			// 	// UP or DW
+			// 	direction = payload.substring(0, amp);
+			// 	// 1 or 2
+			// 	velocidad = payload.substring(amp + 1);
+			// 	velocidad_int = velocidad.toInt();
+			// }
 
-			Serial.print(direction);
-			Serial.println(velocidad_int);
+			// Serial.print(direction);
+			// Serial.println(velocidad_int);
 
-			notifyClients(direction);
+			// notifyClients(direction);
 			//   newRequest = true;
 		}
 
@@ -164,7 +209,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 			// TAKE PHOTO
 			takeNewPhoto = true;
 
-			notifyClients("PHOTO TAKEN");
+			// notifyClients("PHOTO TAKEN");
 		}
 		else if (msg.startsWith("ROT:"))
 		{
@@ -182,8 +227,6 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 	{
 	case WS_EVT_CONNECT:
 		Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-		// Notify client of motor current state when it first connects
-		// notifyClients(direction);
 		break;
 	case WS_EVT_DISCONNECT:
 		Serial.printf("WebSocket client #%u disconnected\n", client->id());
@@ -225,7 +268,7 @@ void sendPhotoToBackend(camera_fb_t *fb)
 		lastPrediction = http.getString();
 		Serial.println("Backend Response: " + lastPrediction);
 		// Send response to websocket
-		notifyClients(lastPrediction);
+		// notifyClients(lastPrediction);
 
 		// const char *lastJSON = lastPrediction.c_str();
 		// // Identify materia type
@@ -290,7 +333,7 @@ esp_err_t cameraCapture()
 	}
 
 	// SEND TO WEBSOCKET SRVR
-	sendPhotoToWebSocket(fb);
+	// sendPhotoToWebSocket(fb);
 
 	// UPLOAD TO SERVER AND BACKEND
 	sendPhotoToBackend(fb);
@@ -308,8 +351,8 @@ void selectFinalM()
 
 	inductivo = !digitalRead(GPIO_INDU);
 	capacitivo = !digitalRead(GPIO_CAPC);
-	notifyClients("INDU: " + String(inductivo));
-	notifyClients("CAPC: " + String(capacitivo));
+	// notifyClients("INDU: " + String(inductivo));
+	// notifyClients("CAPC: " + String(capacitivo));
 
 	// GET MATERIA TYPE
 	JsonDocument doc;
@@ -320,33 +363,66 @@ void selectFinalM()
 	{
 
 		Serial.println("METAL");
-		notifyClients("METAL");
+		// notifyClients("METAL");
 	}
 	else if ((capacitivo && materiaType.equals("glass")) || (capacitivo && materiaType.equals("plastic")))
 	{
 		Serial.println("GLASS");
-		notifyClients("GLASS");
+		// notifyClients("GLASS");
 	}
 	else if (materiaType.equals("plastic") || (materiaType.equals("glass") && !capacitivo))
 	{
 		Serial.println("PLASTIC");
-		notifyClients("PLASTIC");
+		// notifyClients("PLASTIC");
 	}
 	else if (materiaType.equals("paper") || materiaType.equals("cardboard"))
 	{
 		Serial.println("PAPER/CARDBOARD");
-		notifyClients("PAPER/CARDBOARD");
+		// notifyClients("PAPER/CARDBOARD");
 	}
 	else
 	{
 		Serial.println("NO SÉ");
-		notifyClients("NO S[E]");
+		// notifyClients("NO SE");
 	}
 }
 
 void setup()
 {
 	Serial.begin(115200);
+
+	//INICIO PRUEBAS ARRAYQR
+
+	// Empty byte array QR
+	for(uint8_t i = 0; i < BYTES_QR; ++i)
+		byteArrayQR[i] = 0;
+
+	payloadQR->countMetal = 1;
+	payloadQR->countPlastic = 2;
+	payloadQR->countCardPaper = 3;
+	payloadQR->countGlass = 1;
+
+	uint32_t miliss = esp_log_timestamp();
+	Serial.println(miliss);
+
+	// esp_log_timestamp returns Little-Endian binary, converting to Bing-Endian
+	for(int i = 3; i >= 0; --i){
+		// Deja el byte LSB y recorre
+		payloadQR->timestamp[i] = (uint8_t) miliss;
+		miliss = miliss >> 8;	// Recorre ocho bits (lo mismo que dividir entre 256 DEC o 0xFF HEX
+	}
+
+	// Fill nonce of random numbers with ESP32 RNG
+	esp_fill_random(payloadQR->nonce, sizeof(payloadQR->nonce));
+
+	for(uint8_t i = 0; i < BYTES_QR; ++i){
+		Serial.print("[");
+		Serial.print(byteArrayQR[i]);
+		Serial.print("] ");
+	}
+
+	//FIN PRUEBAS ARRAYQR
+
 
 	// PIN MODES
 	pinMode(GPIO_INDU, INPUT_PULLUP);
