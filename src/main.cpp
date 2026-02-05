@@ -37,7 +37,7 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 // Private Key is a secret
-extern const uint8_t private_key_start[] asm ("_binary_secrets_private_key_ed25516_bin_start");
+extern const uint8_t private_key_start[] asm("_binary_secrets_private_key_ed25516_bin_start");
 extern const uint8_t private_key_end[] asm("_binary_secrets_private_key_ed25516_bin_end");
 // Define private key (its size is 32B)
 const uint8_t *privateKey = private_key_start;
@@ -122,9 +122,14 @@ uint8_t publicKey[32] = {
 	0x3c,
 };
 
+// Flag to know if the materia type was identified
+bool identified = false;
 
-bool inductivo = false;
-bool capacitivo = false;
+// Sensors input
+bool inductive = false;
+bool capacitive = false;
+
+// Flag to take photo
 bool takeNewPhoto = false;
 
 // Set your Static IP address
@@ -173,7 +178,6 @@ static camera_config_t camera_config = {
 	.fb_count = 1,
 	.grab_mode = CAMERA_GRAB_WHEN_EMPTY};
 
-
 // ----------------------FUNCTIONS--------------------------
 
 void createSendPayloadQR()
@@ -201,10 +205,6 @@ void initWiFi()
 	Serial.println(WiFi.localIP());
 }
 
-// void notifyClients(String state)
-// {
-// 	ws.textAll(state);
-// }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 {
@@ -393,90 +393,88 @@ esp_err_t cameraCapture()
 // Compare sensor with AI model and select a type
 void selectFinalM()
 {
-	// void readSensors();
+	// Read sensors
+	inductive = !digitalRead(GPIO_INDU);
+	capacitive = !digitalRead(GPIO_CAPC);
 
-	inductivo = !digitalRead(GPIO_INDU);
-	capacitivo = !digitalRead(GPIO_CAPC);
-	// notifyClients("INDU: " + String(inductivo));
-	// notifyClients("CAPC: " + String(capacitivo));
-
-	// GET MATERIA TYPE
+	// GET MATERIA TYPE FROM AI MODEL
 	JsonDocument doc;
 	deserializeJson(doc, lastPrediction);
 	String materiaType = doc["predicted"];
 
-	if (inductivo || materiaType.equals("metal"))
-	{
+	// If not identified is set to false in the last if-else block
+	identified = true;
 
+	if (inductive || materiaType.equals("metal"))
+	{
 		Serial.println("METAL");
 		// notifyClients("METAL");
+		// Increment one
+		payloadQR->countMetal++;
 	}
-	else if ((capacitivo && materiaType.equals("glass")) || (capacitivo && materiaType.equals("plastic")))
+	else if ((capacitive && materiaType.equals("glass")) || (capacitive && materiaType.equals("plastic")))
 	{
 		Serial.println("GLASS");
 		// notifyClients("GLASS");
+		// Increment one
+		payloadQR->countGlass++;
 	}
-	else if (materiaType.equals("plastic") || (materiaType.equals("glass") && !capacitivo))
+	else if (materiaType.equals("plastic") || (materiaType.equals("glass") && !capacitive))
 	{
 		Serial.println("PLASTIC");
 		// notifyClients("PLASTIC");
+		// Increment one
+		payloadQR->countPlastic++;
 	}
 	else if (materiaType.equals("paper") || materiaType.equals("cardboard"))
 	{
 		Serial.println("PAPER/CARDBOARD");
 		// notifyClients("PAPER/CARDBOARD");
+		// Increment one
+		payloadQR->countCardPaper++;
 	}
 	else
 	{
 		Serial.println("NO SÉ");
 		// notifyClients("NO SE");
+		// Not identified
+		identified = false;
 	}
 }
 
-void setup()
+void buildSendQRPayload()
 {
-	Serial.begin(115200);
 
-	// INICIO PRUEBAS ARRAYQR
-	// Ed25519::derivePublicKey(publicKey, privateKey);
+	/*
+		Build QR payload, sign it and send it to websocket
+		QR structure is defined higher in code, but as a small reminder:
+		[Metal][Plastic][Paper/Cardboard][Timestamp][Nonce][ED25519SIGN]
+	*/
 
-	Serial.println("Public KEY:");
-	for (int i = 0; i < 32; ++i)
-	{
-		Serial.print("[");
-		Serial.print(privateKey[i], HEX);
-		Serial.print("] ");
-	}
+	// Get timestamp
+	uint32_t tmp_millis = esp_log_timestamp();
 
-	// Empty byte array QR
-	for (uint8_t i = 0; i < BYTES_QR; ++i)
-		byteArrayQR[i] = 0;
-
-	payloadQR->countMetal = 1;
-	payloadQR->countPlastic = 2;
-	payloadQR->countCardPaper = 3;
-	payloadQR->countGlass = 1;
-
-	uint32_t miliss = esp_log_timestamp();
-	Serial.println(miliss);
-
-	// esp_log_timestamp returns Little-Endian binary, converting to Bing-Endian
+	// esp_log_timestamp returns Little-Endian binary, converting to Big-Endian
 	for (int i = 3; i >= 0; --i)
 	{
-		// Deja el byte LSB y recorre
-		payloadQR->timestamp[i] = (uint8_t)miliss;
-		miliss = miliss >> 8; // Recorre ocho bits (lo mismo que dividir entre 256 DEC o 0xFF HEX
+		// Store LSB byte and shifts
+		payloadQR->timestamp[i] = (uint8_t)tmp_millis;
+		// Shift 8 bits to right(same as dividing over 256 DEC or 0xFF HEX)
+		tmp_millis = tmp_millis >> 8;
 	}
 
 	// Fill nonce of random numbers with ESP32 RNG
 	esp_fill_random(payloadQR->nonce, sizeof(payloadQR->nonce));
 
-	// Sign payload (16 because signature excludes signature)
+	// Sign payload (16 because is the info to sign)
 	Ed25519::sign(payloadQR->signature, privateKey, publicKey, byteArrayQR, 16);
 
+	// Print if it was successfull
+	Serial.print("QR BUILD: ");
 	Serial.print(Ed25519::verify(payloadQR->signature, publicKey, byteArrayQR, 16));
+	Serial.println("");
 
-	// Imprime payloadQR
+	// Print payloadQR content TESTING
 	for (uint8_t i = 0; i < BYTES_QR; ++i)
 	{
 		Serial.print("[");
@@ -484,7 +482,27 @@ void setup()
 		Serial.print("] ");
 	}
 
-	// FIN PRUEBAS ARRAYQR
+	// Send to websocket
+	ws.textAll("QR_BEGIN");
+	ws.binaryAll(byteArrayQR, 80);
+	ws.textAll("QR_END");
+
+	// Set materialCount to 0
+	payloadQR->countMetal = 0;
+	payloadQR->countPlastic = 0;
+	payloadQR->countCardPaper = 0;
+	payloadQR->countGlass = 0;
+}
+
+void setup()
+{
+	Serial.begin(115200);
+
+	// Set materialCount to 0
+	payloadQR->countMetal = 0;
+	payloadQR->countPlastic = 0;
+	payloadQR->countCardPaper = 0;
+	payloadQR->countGlass = 0;
 
 	// PIN MODES
 	pinMode(GPIO_INDU, INPUT_PULLUP);
@@ -520,7 +538,11 @@ void loop()
 			Serial.println("Photo successfull");
 		};
 
+		// Select materia type and increment corresponding file
 		selectFinalM();
+
+		// If it was the last, send signed QR
+		buildSendQRPayload();
 
 		delay(100);
 	}
