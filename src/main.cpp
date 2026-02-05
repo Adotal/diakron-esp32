@@ -16,6 +16,10 @@
 #include "Crypto.h"
 #include "Ed25519.h"
 
+// For disabling brownout detecor TESTING
+#include "soc/soc.h"             // Access system control
+#include "soc/rtc_cntl_reg.h"    // Access RTC control registers)
+
 // PINS DEFINITION
 #define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
@@ -204,7 +208,6 @@ void initWiFi()
 	}
 	Serial.println(WiFi.localIP());
 }
-
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
 {
@@ -470,7 +473,7 @@ void buildSendQRPayload()
 	Ed25519::sign(payloadQR->signature, privateKey, publicKey, byteArrayQR, 16);
 
 	// Print if it was successfull
-	Serial.print("QR BUILD: ");
+	Serial.print("QR BUILD SUCCESS: ");
 	Serial.print(Ed25519::verify(payloadQR->signature, publicKey, byteArrayQR, 16));
 	Serial.println("");
 
@@ -496,6 +499,9 @@ void buildSendQRPayload()
 
 void setup()
 {
+	// TESTING
+	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector
+
 	Serial.begin(115200);
 
 	// Set materialCount to 0
