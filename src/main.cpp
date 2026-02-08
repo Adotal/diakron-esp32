@@ -481,7 +481,7 @@ void buildSendQRPayload()
 	for (uint8_t i = 0; i < BYTES_QR; ++i)
 	{
 		Serial.print("[");
-		Serial.print(byteArrayQR[i]);
+		Serial.print(byteArrayQR[i], HEX);
 		Serial.print("] ");
 	}
 
