@@ -2,6 +2,24 @@
 #include "../core/motor.h"
 #include "../hal/IPinDriver.h"
 
+/*
+    This class represents a 28BYJ-48 stepper motor, which is a common and inexpensive stepper motor.
+    It is a unipolar stepper motor that typically has 4 control wires (plus a common wire) and can 
+    be driven using a ULN2003 driver board.
+    The class inherits from the base `motor` class and implements the specific behavior for controlling 
+    a 28BYJ-48 motor, including the step sequence and timing for generating the appropriate signals 
+    on the control pins.
+
+    ---- INFO ----
+    - MAX RPM: 15 RPM
+    - MAX RPM STABLE: 15 RPM
+    - MIN RPM: 1 RPM
+
+    -- NOTE --
+    - The motor is slower than other types, so typically it will be used in max speed for the sensor 
+      movements, which do not require high speed.
+*/
+
 class stepper_28byj : public motor
 {
 private:
@@ -16,8 +34,8 @@ private:
         {0, 0, 0, 1},
         {1, 0, 0, 1}
     };
-    unsigned long lastStepTime;  // Último micros() donde se dio un paso
-    unsigned long stepInterval;  // Microsegundos entre pasos
+    unsigned long lastStepTime;  // Last micros() where a step was taken
+    unsigned long stepInterval;  // Microseconds between steps
     int stepIndex;
     bool direction; // true for forward, false for backward
     long position;

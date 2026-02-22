@@ -1,30 +1,22 @@
 #include "axis.h"
 
-axis::axis(motor &motorType, Limits &sw, long maxTravel, bool inverted) : motorRef(motorType), homeSwitch(sw), maxTravelSteps(maxTravel), isInverted(isInverted) {
+axis::axis(motor &motorType, Limits &sw, long maxTravel, bool inverted) : motorRef(motorType), homeSwitch(sw), maxTravelSteps(maxTravel), isInverted(inverted) {
     state = HOMING_IDLE;
     measuredMaxSteps = 0;
     isInverted = inverted;
+    targetPosition = 0;
+    isMoving = false;
 }
 
 void axis::startHoming() {
     motorRef.enable(true);
     bool searchDir = isInverted;
     motorRef.setDirection(searchDir);
-    motorRef.setSpeed(dynamicSpeed(80)); // Start with 80% speed
+    motorRef.setSpeed(dynamicSpeed(50)); // Start with 50% speed
     state = HOMING_FAST_SEARCH;
 }
 
-/*
-    -------------- HOW IT WORKS --------------
-    1. Start homing in the default direction (can be inverted with isInverted)
-    2. When the switch is activated, back up until you release the switch.
-    3. Approach slowly until the switch is triggered again, this is the home position, set it to zero
-    4. Move in the opposite direction until the switch is triggered again, this is the max travel, save this value
-    5. Move back to home position and stop, homing is done
-
-*/
-
-void axis::update(){
+void axis::updateHoming(){
     bool toSensor = isInverted;
     bool awayFromSensor = !isInverted;
     switch (state)
@@ -35,8 +27,7 @@ void axis::update(){
         } else{
             state = HOMING_BACKOFF;
             motorRef.setDirection(awayFromSensor);
-            motorRef.setSpeed(dynamicSpeed(20)); // Back off at 30% speed
-            backoffCounter = 0;
+            motorRef.setSpeed(dynamicSpeed(20)); // Back off at 20% speed
         }
         break;
 
@@ -54,27 +45,35 @@ void axis::update(){
         if(!homeSwitch.isTriggered()){
             motorRef.update();
         }else{
-            // Home real encontrado
+            // Home really found, set position to zero
             motorRef.resetPosition(0); 
-            // Ahora vamos a buscar el otro extremo del eje
+            // Move away from the sensor to measure the max travel
             motorRef.setDirection(awayFromSensor);
             motorRef.setSpeed(dynamicSpeed(60));
-            state = HOMING_DONE;
+            state = HOMING_SET_ZERO;
         }
         break;
     
-    /*case HOMING_SET_ZERO:
+    case HOMING_SET_ZERO:
         motorRef.resetPosition(0);
-        motorRef.setDirection(isInverted ? true : false);
         motorRef.setSpeed(dynamicSpeed(70)); // Set max travel at 70% speed
         state = HOMING_MEASURE_TRAVEL;
-        break;*/
+        break;
     
     case HOMING_MEASURE_TRAVEL:
         if(motorRef.getPosition() < maxTravelSteps){
             motorRef.update();
         }else{
             measuredMaxSteps = motorRef.getPosition();
+            //motorRef.enable(false);
+            motorRef.setDirection(toSensor);
+            state = HOMING_RETURN_TO_ZERO;
+        }
+        break;
+    case HOMING_RETURN_TO_ZERO:
+        if(motorRef.getPosition() > 0){
+            motorRef.update();
+        }else{
             motorRef.enable(false);
             state = HOMING_DONE;
         }
@@ -85,7 +84,7 @@ void axis::update(){
         break;
 
     case HOMING_ERROR:
-        // Handle error state, maybe stop the motor and signal an error
+        // Handle error state
         motorRef.enable(false);
         break;
 
@@ -107,4 +106,50 @@ long axis::dynamicSpeed(int percentage){
     // For example, you can reduce the speed as it gets closer to the target to avoid overshooting
     // This is just a placeholder implementation and can be adjusted based on the specific requirements of your application
     return (((motorRef.getDefaultRPM() + motorRef.getMaxRPM())/2) * percentage) / 100;
+}
+
+bool axis::moveTo(long target) {
+
+    // Software Limits
+    if(target < 0) target = 0;
+    if(target > measuredMaxSteps) target = measuredMaxSteps;
+
+    long current = motorRef.getPosition();
+    if(target == current) return true;
+
+    motorRef.setDirection(target > current);
+
+    targetPosition = target;
+    isMoving = true;
+    return true;
+}
+
+bool axis::moveRelative(long delta)
+{
+    return moveTo(motorRef.getPosition() + delta);
+}
+
+void axis::update()
+{
+    if(!isHomed())
+    {
+        updateHoming();
+        return;
+    }
+
+    if(isMoving)
+    {
+        motorRef.enable(true);
+
+        long pos = motorRef.getPosition();
+
+        if(pos == targetPosition)
+        {
+            isMoving = false;
+            motorRef.enable(false);
+            return;
+        }
+
+        motorRef.update();
+    }
 }

@@ -56,6 +56,7 @@ void stepper_28byj::setSpeed(long rpm) {
 
 
 void stepper_28byj::setDirection(bool dir) {
+    direction = dir;
     direction = dir ? 1 : 0;
 }
 

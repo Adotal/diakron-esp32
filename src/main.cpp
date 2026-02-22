@@ -16,18 +16,34 @@ extern const uint8_t private_key_end[] asm("_binary_secrets_private_key_ed25516_
 const uint8_t *privateKey = private_key_start;
 
 // --------------------------MOTOR DEFINITIONS--------------------------
+// =====================
 // Interfaces 
+// =====================
 Adafruit_MCP23X17 mcp;
 mcp_driver interfaceI2C(mcp);
 gpio_driver interfaceGPIO;
+
+// =====================
+// Motors
+// =====================
 nema17 motorBase(interfaceI2C, 0, 1, 2);
 stepper_28byj motorSensorINDU(interfaceI2C, 4, 5, 6, 7);
 stepper_28byj motorSensorCAPC(interfaceI2C, 8, 9, 10, 11);
 
+// =====================
 // Limit switches
+// =====================
 Limits limitBase(interfaceI2C, 3, false);
-// Relationship between limit switches and axes
-axis homeSwitchBase(motorBase, limitBase, 1000, false); // Assuming max travel is 1000 steps and not inverted
+
+// =====================
+// Axis (motor + limit)
+// =====================
+axis axisBase(motorBase, limitBase, MAX_TRAVEL_STEPS_BASE, false);
+
+// =====================
+// Motor Manager
+// =====================
+MotorManager manager;
 
 //-----------------GLOBAL VARIABLES-------------------------
 
@@ -560,7 +576,7 @@ void setup()
 	WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector
 
 	// TESTING
-	Serial.begin(115200);
+	Serial.begin(SERIAL_BAUD_RATE);
 
 	// SENSORS PIN MODES
 	pinMode(GPIO_INDU, INPUT_PULLUP);
@@ -631,13 +647,16 @@ void setup()
 	}
 	// Initialize ALL motors
 	motorBase.begin();
-	motorBase.setDirection(true); // Set direction TESTING
-	motorBase.setSpeed(60); // Set speed TESTING
-	motorBase.enable(false);
 	motorSensorINDU.begin();
-	motorSensorINDU.setDirection(true); // Set direction TESTING
 	motorSensorCAPC.begin();
+	motorBase.setDirection(true);
+	motorSensorINDU.setDirection(true);
 	motorSensorCAPC.setDirection(false);
+	motorBase.enable(false);
+	// Initialize home switch axis
+	limitBase.begin();
+	// Add axis to manager
+	manager.addAxis('A', &axisBase);
 
 	delay(2000);
 }
@@ -669,21 +688,23 @@ void loop()
 		delay(100);
 	}
 	ws.cleanupClients();
-	
+
 	//service_ui_update();
-	if(Serial.available()){
-		String command = Serial.readStringUntil('\n');
-		if(command.equals("home")){
-			Serial.println("START HOMING");
-			homeSwitchBase.startHoming();
-		}
-		
-	}
-		
-	if(!homeSwitchBase.isHomed()){
-		homeSwitchBase.update();
-	}else if(homeSwitchBase.isHomed()){
-		motorBase.enable(false);
-	}
+	
+	// Process commands from serial
+    if(Serial.available())
+    {
+        static char buffer[64];
+        size_t len = Serial.readBytesUntil('\n', buffer, sizeof(buffer)-1);
+        buffer[len] = '\0';
+
+        if(manager.exeCommand(buffer))
+			Serial.println("Command executed successfully");
+		else
+			Serial.println("Failed to execute command");
+    }
+
+    // Update all axes	
+    manager.update();
 
 }

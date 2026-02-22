@@ -30,6 +30,7 @@ void nema17::step() {
 }
 
 void nema17::setDirection(bool dir){
+    direction = dir;
     driver->digitalWrite(dirPin, dir ? HIGH : LOW);
 }
 

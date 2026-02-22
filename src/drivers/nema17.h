@@ -25,9 +25,8 @@ private:
     uint8_t dirPin;
     uint8_t enablePin;
 
-    // Variables para el control de velocidad constante (No bloqueante)
-    unsigned long lastStepTime;  // Último micros() donde se dio un paso
-    unsigned long stepInterval;  // Microsegundos entre pasos
+    unsigned long lastStepTime;  // Last micros() where a step was taken
+    unsigned long stepInterval;  // Microseconds between steps
     bool currentDirection;
     long position;
     bool direction;

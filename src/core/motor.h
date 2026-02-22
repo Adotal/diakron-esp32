@@ -24,6 +24,17 @@
         stepper_28byj motor2(&gpioDrv, 5,6,7,8);
 */
 
+/*
+    To manipulate motors, a base class `motor` is defined, which is abstract. 
+    Each motor type (nema17, 28byj) then inherits from this class and implements its specific methods.
+    However, for more advanced control, an `axis` class is defined, which combines 
+    a motor with a limit switch to perform homing routines and relative or absolute movements.
+    Finally, there is a `MotorManager` that can handle multiple axes, allowing movement 
+    commands to be sent to all of them in a coordinated manner.
+    MORE INFORMATION IN axis.h and motor_manager.h
+
+*/
+
 class motor{
 protected:
     IPinDriver* driver;
