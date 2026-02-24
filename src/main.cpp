@@ -3,7 +3,7 @@
 
 // -------------------------PIN DEFINITION & CONSTANTS--------------------------
 #include "config/camera_pins.h"
-const uint8_t hcsr04_echo_pins[4] = {P0, P1, P2, P3};
+const uint8_t hcsr04_echo_pins[4] = {12, 13, 14, 15};
 // Where to send the image
 const char *backendURL = "https://diakron-backend.onrender.com/analyze";
 // Acces Point credentials
@@ -321,7 +321,7 @@ void sendPhotoToBackend(camera_fb_t *fb)
 {
 
 	WiFiClientSecure client;
-	client.setInsecure(); // Nota: En producción usa certificados
+	client.setInsecure(); // TESTING Use ceritifcates in production
 	// Añadir en http.begin(client, backendURL)
 
 	HTTPClient http;
@@ -599,6 +599,8 @@ void setup()
 
 	// Initi I2C with custom pins
 	Wire.begin(GPIO_I2C_SDA, GPIO_I2C_SCL);
+	// 400 KHz Max stable I2C velocity
+	Wire.setClock(400000);
 
 	// Print message if psram
 	if (psramFound)
