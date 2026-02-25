@@ -97,6 +97,11 @@ bool axis::isHomed() const{
     return state == HOMING_DONE;
 }
 
+bool axis::isMoved() const
+{
+    return isMoving;
+}
+
 long axis::getMeasuredMax() const{
     return measuredMaxSteps;
 }

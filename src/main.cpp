@@ -26,25 +26,43 @@ gpio_driver interfaceGPIO;
 // =====================
 // Motors
 // =====================
-nema17 motorBase(interfaceI2C, 0, 1, 2);
-stepper_28byj motorSensorINDU(interfaceI2C, 4, 5, 6, 7);
-stepper_28byj motorSensorCAPC(interfaceI2C, 8, 9, 10, 11);
+nema17 motorHead(interfaceI2C, 0, 1, 2);
+stepper_28byj motorSensorINDU(interfaceI2C, 8, 9, 10, 11);
+stepper_28byj motorSensorCAPC(interfaceI2C, 12, 13, 14, 15);
 
 // =====================
 // Limit switches
 // =====================
-Limits limitBase(interfaceI2C, 3, false);
-
+Limits limitHead(interfaceI2C, 3, false);
+Limits limitINDU(interfaceI2C, 4, false);
 // =====================
 // Axis (motor + limit)
 // =====================
-axis axisBase(motorBase, limitBase, MAX_TRAVEL_STEPS_BASE, false);
-
+axis axisHead(motorHead, limitHead, MAX_TRAVEL_STEPS_BASE, false);
+axis axisINDU(motorSensorINDU, limitINDU, MAX_TRAVEL_STEPS_INDU, false);
+// =====================
+// System Controller
+// =====================
+SystemController sysController;
 // =====================
 // Motor Manager
 // =====================
-MotorManager manager;
+MotorManager motorManager;
 
+// =====================
+// Protocols
+// =====================
+MotionProtocol motionP(motorManager, sysController);
+StatusProtocol statusP(sysController);
+// =====================
+// Router
+// =====================
+CommandRouter router(motionP, statusP);
+
+// =====================
+// System Manager
+// =====================
+SystemManager systemManager(motorManager, router);
 //-----------------GLOBAL VARIABLES-------------------------
 
 /*	This array stores the information of trash thrown to show a QR in the
@@ -648,17 +666,18 @@ void setup()
 		Serial.println(F("Could not initialize MCP23017!"));
 	}
 	// Initialize ALL motors
-	motorBase.begin();
+	motorHead.begin();
+	motorHead.enable(false);
+
 	motorSensorINDU.begin();
+
 	motorSensorCAPC.begin();
-	motorBase.setDirection(true);
-	motorSensorINDU.setDirection(true);
-	motorSensorCAPC.setDirection(false);
-	motorBase.enable(false);
 	// Initialize home switch axis
-	limitBase.begin();
+	limitHead.begin();
+	limitINDU.begin();
 	// Add axis to manager
-	manager.addAxis('A', &axisBase);
+	motorManager.addAxis('A', &axisHead);
+	motorManager.addAxis('B', &axisINDU);
 
 	delay(2000);
 }
@@ -694,19 +713,14 @@ void loop()
 	//service_ui_update();
 	
 	// Process commands from serial
-    if(Serial.available())
+
+    systemManager.update();
+    if (Serial.available())
     {
         static char buffer[64];
         size_t len = Serial.readBytesUntil('\n', buffer, sizeof(buffer)-1);
         buffer[len] = '\0';
 
-        if(manager.exeCommand(buffer))
-			Serial.println("Command executed successfully");
-		else
-			Serial.println("Failed to execute command");
+        systemManager.processCommand(buffer);
     }
-
-    // Update all axes	
-    manager.update();
-
 }

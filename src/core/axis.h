@@ -37,14 +37,15 @@ private:
     long maxTravelSteps;            // Theoretical safety limit
     long measuredMaxSteps;          // Actual measured distance
     bool isInverted;                // If the direction is inverted, so the homing will be in the opposite direction
-    bool isMoving;
     long targetPosition;
+    bool isMoving;
     long dynamicSpeed(int percentage);    
 public:
     axis(motor &motorType, Limits &sw, long maxTravel, bool inverted = false);
     void startHoming();
     void updateHoming();
     bool isHomed() const;
+    bool isMoved() const;
     long getMeasuredMax() const;
     bool moveTo(long target);
     bool moveRelative(long delta);

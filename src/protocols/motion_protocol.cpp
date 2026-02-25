@@ -1,40 +1,33 @@
-#include "motor_manager.h"
+#include "motion_protocol.h"
 #include <Arduino.h>
+#include <string.h>
+#include <stdlib.h>
 
-
-bool MotorManager::addAxis(char id, axis* motorAx) {
-    if(count >= MAX_MOTORS_PER_MANAGER)
-        return false;
-
-    axes[count++] = { id, motorAx };
-    return true;
+MotionProtocol::MotionProtocol(MotorManager& mm, SystemController& sc)
+    : manager(mm), controller(sc)
+{
 }
 
-axis* MotorManager::getAxis(char id) {
-    for(uint8_t i = 0; i < count; i++) {
-        if(axes[i].id == id)
-            return axes[i].ax;
-    }
-    return nullptr;
-}
-
-bool MotorManager::exeCommand(char* command)
+bool MotionProtocol::handle(char* command)
 {
     if(strncmp(command, "HOME ALL", 8) == 0)
     {
-        for(uint8_t i=0;i<count;i++)
-            axes[i].ax->startHoming();
-
+        Logger::info("HOME ALL START");
+        manager.homeAll();
+        controller.setState(SystemState::HOMING);
         return true;
     }
 
     if(strncmp(command, "HOME ", 5) == 0)
     {
         char axisID = command[5];
-        axis* ax = getAxis(axisID);
+        axis* ax = manager.getAxis(axisID);
+        Logger::info("STARTING HOME");
 
-        if(ax)
+        if(ax){
             ax->startHoming();
+            controller.setState(SystemState::HOMING);
+        }
 
         return true;
     }
@@ -48,9 +41,11 @@ bool MotorManager::exeCommand(char* command)
             char axisID = *ptr++;
             long value = strtol(ptr, (char**)&ptr, 10);
 
-            axis* ax = getAxis(axisID);
-            if(ax)
+            axis* ax = manager.getAxis(axisID);
+            if(ax){
                 ax->moveRelative(value);
+                controller.setState(SystemState::RUNNING);
+            }
         }
 
         return true;
@@ -65,19 +60,15 @@ bool MotorManager::exeCommand(char* command)
             char axisID = *ptr++;
             long value = strtol(ptr, (char**)&ptr, 10);
 
-            axis* ax = getAxis(axisID);
-            if(ax)
+            axis* ax = manager.getAxis(axisID);
+            if(ax){
                 ax->moveTo(value);
+                controller.setState(SystemState::RUNNING);
+            }
         }
 
         return true;
     }
 
     return false;
-}
-
-void MotorManager::update()
-{
-    for(uint8_t i=0;i<count;i++)
-        axes[i].ax->update();
 }

@@ -47,12 +47,11 @@ void stepper_28byj::update() {
 }
 
 void stepper_28byj::setSpeed(long rpm) {
-    // This function can be implemented to set the delay between steps based on the desired RPM
-    // For example, you can calculate the delay as follows:
-    // delay = (60 * 1000) / (steps_per_revolution * rpm);
-    // where steps_per_revolution is the number of steps for a full rotation of the motor
-
+    if (rpm <= 0) return;
+    // (60s * 1,000,000us) / (steps_per_revolution * rpm)
+    this->stepInterval = 60000000L / (STEPS_PER_REVOLUTION * rpm);
 }
+
 
 
 void stepper_28byj::setDirection(bool dir) {

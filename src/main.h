@@ -27,7 +27,7 @@
 // For camera capture
 #include "config/camera_pins.h"
 // For motor control
-#include "core/motor_manager.h"
+#include "communication/command_router.h"
 #include "drivers/nema17.h"
 #include "drivers/stepper_28byj.h"
 #include "hal/gpio_driver.h"
@@ -38,3 +38,7 @@
 
 // For defaults values
 #include "config/defaults.h"
+
+// For system
+#include "system/system_manager.h"
+#include "system/system_controller.h"

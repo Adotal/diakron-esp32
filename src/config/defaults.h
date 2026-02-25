@@ -1,6 +1,6 @@
 // --------------------------GENERAL SETTINGS--------------------------
 #define SERIAL_BAUD_RATE 115200
-#define version "1.3.2" // Version of the fimware DIAKRON Segregator. 
+#define version "1.4.2" // Version of the fimware DIAKRON Segregator. 
 
 // -------------------------PIN DEFINITION & CONSTANTS--------------------------
 #define CAMERA_MODEL_AI_THINKER
@@ -13,5 +13,5 @@
 // ---------------------------MOTOR DEFINITIONS--------------------------
 #define MAX_MOTORS_PER_MANAGER 26 // Limited to 26 axes (A-Z) for command parsing, plus one for safety margin
 #define MAX_TRAVEL_STEPS_BASE 200
-#define MAX_TRAVEL_STEPS_INDU 100
+#define MAX_TRAVEL_STEPS_INDU 4096
 #define MAX_TRAVEL_STEPS_CAPC 100
