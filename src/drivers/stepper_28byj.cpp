@@ -23,11 +23,11 @@ void stepper_28byj::step() {
         driver->digitalWrite(pins[i], stepSequence[stepIndex][i]);
     }
     if(direction){
-        stepIndex = (stepIndex + 1) % 8; // Move to the next step in the sequence
+        stepIndex = (stepIndex + 1) % 4; // Move to the next step in the sequence
         position++;
     }
     else{
-        stepIndex = (stepIndex + 7) % 8; // Move to the previous step in the sequence
+        stepIndex = (stepIndex + 3) % 4; // Move to the previous step in the sequence
         position--;
     }
 }

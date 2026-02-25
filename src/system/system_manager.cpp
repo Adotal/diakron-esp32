@@ -1,13 +1,14 @@
 #include "system_manager.h"
 
-SystemManager::SystemManager(MotorManager& mm, CommandRouter& r)
-    : motorManager(mm), router(r)
+SystemManager::SystemManager(MotorManager& mm, CommandRouter& r, SystemController& sc, InterfaceUI& ui)
+    : motorManager(mm), router(r), controller(sc), display(ui)
 {
 }
 
 void SystemManager::init()
 {
     controller.setState(SystemState::IDLE);
+    
 }
 
 void SystemManager::update()
@@ -16,11 +17,16 @@ void SystemManager::update()
     motorManager.update();
     SystemState state = controller.getState();
 
+    // ONLY UPDATE OLED IF THE SYSTEM IS NOT WORKING. THIS IS BECAUSE IT HAS PROBLEMS WITH THE MOTOR MOVEMENT.
+    if(state == SystemState::IDLE){
+        display.update();
+    }
+
     if(state == SystemState::HOMING)
     {
         if(motorManager.allAxesHomed())
         {
-            Logger::info("HOMING COMPLETE");
+            Logger::info("ALL HOMING COMPLETED");
             controller.setState(SystemState::IDLE);
         }
     }

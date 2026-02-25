@@ -12,6 +12,13 @@
 
 // ---------------------------MOTOR DEFINITIONS--------------------------
 #define MAX_MOTORS_PER_MANAGER 26 // Limited to 26 axes (A-Z) for command parsing, plus one for safety margin
-#define MAX_TRAVEL_STEPS_BASE 200
-#define MAX_TRAVEL_STEPS_INDU 4096
-#define MAX_TRAVEL_STEPS_CAPC 100
+#define MAX_TRAVEL_STEPS_BASE 200   // limit max of steps
+#define MAX_TRAVEL_STEPS_INDU 4096  // limit max of steps
+#define MAX_TRAVEL_STEPS_CAPC 100   // limit max of steps
+
+// ---------------------------OLED SCREEN--------------------------
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_ADDR 0x3C          // Ubicacion de la pantalla OLED en el bus I2C
+#define OLED_RESET -1
+#define SERVICE_BUTTON_PIN 26    // Posible Cambio 

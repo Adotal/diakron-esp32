@@ -24,7 +24,7 @@ class stepper_28byj : public motor
 {
 private:
     uint8_t pins[4];
-    const uint8_t stepSequence[8][4] = {
+    /*const uint8_t stepSequence[8][4] = {
         {1, 0, 0, 0},
         {1, 1, 0, 0},
         {0, 1, 0, 0},
@@ -33,6 +33,12 @@ private:
         {0, 0, 1, 1},
         {0, 0, 0, 1},
         {1, 0, 0, 1}
+    };*/
+    const uint8_t stepSequence[4][4] = {
+        {1, 0, 0, 0},
+        {0, 1, 0, 0},
+        {0, 0, 1, 0},
+        {0, 0, 0, 1}
     };
     unsigned long lastStepTime;  // Last micros() where a step was taken
     unsigned long stepInterval;  // Microseconds between steps
@@ -42,7 +48,7 @@ private:
 
     long const DEFAULT_RPM_28BYJ = 15;
     long const MAX_RPM_28BYJ = 15;
-    long const STEPS_PER_REVOLUTION = 4096; // 28BYJ-48 has 2048 steps per revolution in full-step mode
+    long const STEPS_PER_REVOLUTION = 2048; // 28BYJ-48 has 2048 steps per revolution in full-step mode
 public:
     stepper_28byj(IPinDriver &driver, uint8_t pin1, uint8_t pin2, uint8_t pin3, uint8_t pin4);
     void begin();

@@ -17,6 +17,11 @@ const uint8_t *privateKey = private_key_start;
 
 // --------------------------MOTOR DEFINITIONS--------------------------
 // =====================
+// System Controller
+// =====================
+SystemController sysController;
+
+// =====================
 // Interfaces 
 // =====================
 Adafruit_MCP23X17 mcp;
@@ -40,12 +45,24 @@ Limits limitINDU(interfaceI2C, 4, false);
 // =====================
 axis axisHead(motorHead, limitHead, MAX_TRAVEL_STEPS_BASE, false);
 axis axisINDU(motorSensorINDU, limitINDU, MAX_TRAVEL_STEPS_INDU, false);
+
 // =====================
-// System Controller
+// OLED
 // =====================
-SystemController sysController;
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 // =====================
-// Motor Manager
+// ButtonUI
+// =====================
+ButtonUI actionButton(interfaceGPIO, SERVICE_BUTTON_PIN);
+
+// =====================
+// Interface UI (oled + actionButton)
+// =====================
+InterfaceUI interfaceUI(display, actionButton);
+
+// =====================
+// Managers
 // =====================
 MotorManager motorManager;
 
@@ -62,7 +79,7 @@ CommandRouter router(motionP, statusP);
 // =====================
 // System Manager
 // =====================
-SystemManager systemManager(motorManager, router);
+SystemManager systemManager(motorManager, router, sysController, interfaceUI);
 //-----------------GLOBAL VARIABLES-------------------------
 
 /*	This array stores the information of trash thrown to show a QR in the
@@ -656,16 +673,12 @@ void setup()
 		Serial.println(F("Could not initialize PCF8574!"));
 	}
 
-	// Initialize OLED UI
-	if (!service_ui_init()){
-		Serial.println(F("Could not initialize OLED UI!"));
-	}
-
 	// Initialize with default address 0x20 on the custom wire
 	if(!mcp.begin_I2C(0x20, &Wire)){
 		Serial.println(F("Could not initialize MCP23017!"));
 	}
 	// Initialize ALL motors
+	systemManager.init();
 	motorHead.begin();
 	motorHead.enable(false);
 
@@ -678,6 +691,8 @@ void setup()
 	// Add axis to manager
 	motorManager.addAxis('A', &axisHead);
 	motorManager.addAxis('B', &axisINDU);
+
+	interfaceUI.begin();
 
 	delay(2000);
 }
@@ -709,9 +724,6 @@ void loop()
 		delay(100);
 	}
 	ws.cleanupClients();
-
-	//service_ui_update();
-	
 	// Process commands from serial
 
     systemManager.update();

@@ -23,7 +23,10 @@
 #include "Wire.h"
 #include "PCF8574.h"
 // For UI OLED
-#include "ui/service_ui.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include "drivers/buttonUI.h"
+#include "core/interfaceUI.h"
 // For camera capture
 #include "config/camera_pins.h"
 // For motor control

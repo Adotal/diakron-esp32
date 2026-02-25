@@ -33,7 +33,14 @@ bool MotionProtocol::handle(char* command)
     }
 
     if(strncmp(command, "MOVE ", 5) == 0)
-    {
+    {   
+        
+
+        if (!controller.canMove()){
+            Logger::info("THE AXIS COULD NOT BE MOVED IN THIS MOMENT");
+            return true;
+        }
+        
         const char* ptr = command + 5;
 
         while(*ptr != '\0')
@@ -43,6 +50,11 @@ bool MotionProtocol::handle(char* command)
 
             axis* ax = manager.getAxis(axisID);
             if(ax){
+                if(!ax->isHomed())
+                {
+                    Logger::error("AXIS NOT HOMED");
+                    return true;
+                }
                 ax->moveRelative(value);
                 controller.setState(SystemState::RUNNING);
             }
@@ -53,6 +65,11 @@ bool MotionProtocol::handle(char* command)
 
     if(strncmp(command, "MOVETO ", 7) == 0)
     {
+        if (!controller.canMove()){
+            Logger::info("THE AXIS COULD NOT BE MOVED IN THIS MOMENT");
+            return true;
+        }
+
         const char* ptr = command + 7;
 
         while(*ptr != '\0')
@@ -62,11 +79,15 @@ bool MotionProtocol::handle(char* command)
 
             axis* ax = manager.getAxis(axisID);
             if(ax){
+                if(!ax->isHomed())
+                {
+                    Logger::error("AXIS NOT HOMED");
+                    return true;
+                }
                 ax->moveTo(value);
                 controller.setState(SystemState::RUNNING);
             }
         }
-
         return true;
     }
 

@@ -1,17 +1,18 @@
 #pragma once
-#include "../motion/motor_manager.h"
+#include "../manager/motor_manager.h"
 #include "../communication/command_router.h"
 #include "system_controller.h"
-
+#include "../core/interfaceUI.h"
 class SystemManager
 {
 private:
     MotorManager& motorManager;
     CommandRouter& router;
-    SystemController controller;
+    SystemController &controller;
+    InterfaceUI &display;
 
 public:
-    SystemManager(MotorManager& mm, CommandRouter& r);
+    SystemManager(MotorManager& mm, CommandRouter& r, SystemController& sc, InterfaceUI& ui);
 
     void init();
     void update();
