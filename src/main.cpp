@@ -16,6 +16,8 @@ extern const uint8_t private_key_end[] asm("_binary_secrets_private_key_ed25516_
 const uint8_t *privateKey = private_key_start;
 // NTP server to request epoch time
 const char *ntpServer = "pool.ntp.org";
+// ID del segregador
+const uint16_t id = 1;
 
 // --------------------------MOTOR DEFINITIONS--------------------------
 // =====================
@@ -130,6 +132,7 @@ uint8_t byteArrayQR[BYTES_QR];
 
 typedef struct __attribute__((packed))
 {
+	uint8_t id[2];
 	uint8_t countMetal;			// 0
 	uint8_t weightMetal[2];		// 1
 	uint8_t countPlastic;		// 3
@@ -402,11 +405,14 @@ time_t getTime()
 
 void buildSendQRPayload()
 {
+	// Add segregator id
+	payloadQR->id[0] = (uint8_t)(id >> 8);
+	payloadQR->id[1] = (uint8_t)(id);
 
 	/*
 		Build QR payload, sign it and send it to websocket
 		QR structure is defined higher in code, but as a small reminder:
-		[Metal][Plastic][Paper/Cardboard][Timestamp][Nonce][ED25519SIGN]
+		[id][Metal][Plastic][Paper/Cardboard][Timestamp][Nonce][ED25519SIGN]
 	*/
 
 	// Get timestamp

@@ -4,7 +4,7 @@
 
 // -------------------------PIN DEFINITION & CONSTANTS--------------------------
 #define CAMERA_MODEL_AI_THINKER
-#define BYTES_QR 88
+#define BYTES_QR 90
 // Four HC-SR04 ultrasonic sensors, using same trigger pin, different echo
 #define PCF_TRIG P4
 // The can depth in centimeters (cm) to measure filling levels
