@@ -132,18 +132,18 @@ uint8_t byteArrayQR[BYTES_QR];
 
 typedef struct __attribute__((packed))
 {
-	uint8_t id[2];
-	uint8_t countMetal;			// 0
-	uint8_t weightMetal[2];		// 1
-	uint8_t countPlastic;		// 3
-	uint8_t weightPlastic[2];	// 4
-	uint8_t countCardPaper;		// 6
-	uint8_t weightCardPaper[2]; // 7
-	uint8_t countGlass;			// 9
-	uint8_t weightGlass[2];		// 10
-	uint8_t timestamp[4];		// 12–15
-	uint8_t nonce[8];			// 16–23
-	uint8_t signature[64];		// 24–87 (ED25519)
+	uint8_t id[2];				// 0
+	uint8_t countMetal;			// 2
+	uint8_t weightMetal[2];		// 3
+	uint8_t countPlastic;		// 5
+	uint8_t weightPlastic[2];	// 6
+	uint8_t countCardPaper;		// 8
+	uint8_t weightCardPaper[2]; // 8
+	uint8_t countGlass;			// 11
+	uint8_t weightGlass[2];		// 12
+	uint8_t timestamp[4];		// 14–18
+	uint8_t nonce[8];			// 18–26
+	uint8_t signature[64];		// 26–90 (ED25519)
 } qr_payload_t;
 
 // Overlay structure on array, enableing writing on it
@@ -382,6 +382,29 @@ void selectFinalM()
 		// Not identified
 		identified = false;
 	}
+
+	// TESTING
+	// Test values for weight TESTING
+	/*
+		METAL - 13 g
+		PLASTIC - 2 g
+		GLASS - 70 g
+		PAPER - 0 g
+	*/	
+
+	// THIS IS HOW MUST BE SET *pesoPlastico is weight reading
+	uint16_t pesoPlastico = 2;
+	payloadQR->weightPlastic[0] = (uint8_t)(pesoPlastico >> 8);
+	payloadQR->weightPlastic[1] = (uint8_t)(pesoPlastico);
+
+	payloadQR->weightMetal[1] = (uint8_t)(13);
+
+
+	uint16_t pesoGlass = 70;
+	payloadQR->weightGlass[0] = (uint8_t)(pesoGlass >> 8);
+	payloadQR->weightGlass[1] = (uint8_t)(pesoGlass);	
+
+	// payloadQR->weightCardPaper[1] = (uint8_t)(0);
 }
 
 
@@ -554,14 +577,6 @@ void setup()
 
 	// Set materialCount and weights to 0
 	memset(payloadQR, 0, sizeof(*payloadQR));
-
-	// Test values for weight TESTING
-	payloadQR->weightMetal[0] = (uint8_t)(65535 >> 8);
-	payloadQR->weightMetal[1] = (uint8_t)(65535);
-
-	uint16_t pesoPlastico = 1300;
-	payloadQR->weightPlastic[0] = (uint8_t)(pesoPlastico >> 8);
-	payloadQR->weightPlastic[1] = (uint8_t)(pesoPlastico);
 
 	// Start Wifi
 	initWiFi();
