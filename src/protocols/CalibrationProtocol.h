@@ -1,4 +1,7 @@
 
+#ifndef CALIBRATIONPROTOCOL_H
+#define CALIBRATIONPROTOCOL_H
+
 #include "../drivers/hx711Sensor.h"
 #include "../communication/logger.h"
 
@@ -28,4 +31,6 @@ public:
     CalibrationProtocol(HX711Sensor& s);
     bool handle(char* command);
 };
+
+#endif
 

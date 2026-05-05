@@ -3,7 +3,6 @@
 
 // -------------------------PIN DEFINITION & CONSTANTS--------------------------
 #include "config/camera_pins.h"
-const uint8_t hcsr04_echo_pins[4] = {12, 13, 14, 15};
 // Where to send the image
 const char *backendURL = "https://diakron-backend.onrender.com/analyze";
 // Private Key is a secret
@@ -14,10 +13,8 @@ const uint8_t *privateKey = private_key_start;
 
 // --------------------------MOTOR DEFINITIONS--------------------------
 // =====================
-// Services
+// Services WIFI
 // =====================
-
-// WIFI
 // Acces Point credentials
 const char *SSID = "INFINITUM6134";
 const char *PASW = "DGkQb3J4DS";
@@ -29,6 +26,16 @@ IPAddress gateway(192, 168, 100, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
+// =====================
+// Services WEBSOCKET
+// =====================
+AsyncWebServer server(80);
+WebSocketService wsService(server);
+
+// =====================
+// Services Camera
+// =====================
+CameraService camera(backendURL);
 
 // =====================
 // System Controller
@@ -38,8 +45,9 @@ SystemController sysController;
 // =====================
 // Interfaces
 // =====================
-Adafruit_MCP23X17 mcp;
+Adafruit_MCP23X17 mcp, mcp2;
 mcp_driver interfaceI2C(mcp);
+mcp_driver interfaceI2C2(mcp2);
 gpio_driver interfaceGPIO;
 
 // =====================
@@ -55,6 +63,10 @@ stepper_28byj motorSensorCAPC(interfaceI2C, CAPC_STEP_PIN_1, CAPC_STEP_PIN_2, CA
 CapacitiveSensor sensorCAPC(interfaceI2C, GPIO_CAPC);
 InductiveSensor sensorINDU(interfaceI2C, GPIO_INDU);
 HX711Sensor sensorHX711(HX711_DOUT_PIN, HX711_SCK_PIN);
+HCSR04Sensor binMetal(interfaceI2C2, PCF_TRIG, binMetalEchoPin, binDepthCm);
+HCSR04Sensor binPlastic(interfaceI2C2, PCF_TRIG, binPlasticEchoPin, binDepthCm);
+HCSR04Sensor binPaper(interfaceI2C2, PCF_TRIG, binPaperEchoPin, binDepthCm);
+HCSR04Sensor binGlass(interfaceI2C2, PCF_TRIG, binGlassEchoPin, binDepthCm);
 // =====================
 // Limit switches
 // =====================
@@ -88,6 +100,7 @@ InterfaceUI interfaceUI(display, actionButton);
 // =====================
 MotorManager motorManager;
 SensorManager sensorManager;
+FillLevelManager fillManager;
 // =====================
 // Protocols
 // =====================
@@ -103,7 +116,7 @@ CommandRouter router(motionP, statusP, sensorP, calibrationP);
 // =====================
 // System Manager
 // =====================
-SystemManager systemManager(motorManager, router, sysController, interfaceUI);
+SystemManager systemManager(motorManager, router, sysController, interfaceUI, camera, fillManager, wsService);
 //-----------------GLOBAL VARIABLES-------------------------
 
 /*	This array stores the information of trash thrown to show a QR in the
@@ -201,17 +214,9 @@ bool identified = false;
 bool inductive = false;
 bool capacitive = false;
 
-// Wifi server port 80
-AsyncWebServer server(80);
-AsyncWebSocket ws("/ws");
-
 // Store AI segregation response
 String lastPrediction;
 
-// I2C expander on 0x20 address
-PCF8574 pcf8574_0(0x20);
-// --------------------------CAMERA CONFIG------------------
-CameraService camera(backendURL);
 //------------------------FUNCTIONS PROTOTYPES
 void sendfillLevels();
 // ----------------------FUNCTIONS--------------------------
@@ -220,100 +225,7 @@ void createSendPayloadQR()
 {
 }
 
-// Message received from HMI via websocket
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
-{
-	AwsFrameInfo *info = (AwsFrameInfo *)arg;
 
-	if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT)
-	{
-		String msg;
-		for (size_t i = 0; i < len; i++)
-			msg += (char)data[i];
-
-		Serial.print("Received: ");
-		Serial.println(msg);
-
-		// --------- Detect message type ---------
-		if (msg.startsWith("MOVE:"))
-		{
-			// Exampe of obtaining payload, vaues separated by &
-			// String payload = msg.substring(5);
-
-			// Obtiene índice del separador &
-			// int amp = payload.indexOf("&");
-
-			// String direction, velocidad;
-			// int velocidad_int;
-
-			// if (amp > 0)
-			// {
-			// 	// Obtiene dirección
-			// 	// UP or DW
-			// 	direction = payload.substring(0, amp);
-			// 	// 1 or 2
-			// 	velocidad = payload.substring(amp + 1);
-			// 	velocidad_int = velocidad.toInt();
-			// }
-		}
-
-		else if (msg.equals("CAPT"))
-		{
-			Serial.println("TAKING PHOTO...");
-			camera.requestCapture();
-		}
-		else if (msg.equals("FL"))
-		{
-			// Send Fill levels
-			sendfillLevels();
-		}
-		else
-		{
-			Serial.println("Unknown message type.");
-		}
-	}
-}
-
-void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)
-{
-	switch (type)
-	{
-	case WS_EVT_CONNECT:
-		Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-
-		// Send fill levels on connect
-		sendfillLevels();
-
-		break;
-	case WS_EVT_DISCONNECT:
-		Serial.printf("WebSocket client #%u disconnected\n", client->id());
-		break;
-	case WS_EVT_DATA:
-		handleWebSocketMessage(arg, data, len);
-		break;
-	case WS_EVT_PONG:
-	case WS_EVT_ERROR:
-		break;
-	}
-}
-
-void initWebSocket()
-{
-	ws.onEvent(onEvent);
-	server.addHandler(&ws);
-}
-
-void sendPhotoToWebSocket(camera_fb_t *fb)
-{
-	// Notify that is sending an IMAGE
-	// ws.textAll("IMG_BEGIN");
-
-	// Send JPEG buffer as binary WS frame
-	ws.binaryAll(fb->buf, fb->len);
-
-	// NOtiify end of IMAGE
-	// ws.textAll("IMG_END");
-}
 // Compare sensor with AI model and select a type
 void selectFinalM()
 {
@@ -406,69 +318,13 @@ void buildSendQRPayload()
 
 	// Send to websocket
 	// ws.textAll("QR_BEGIN");
-	ws.binaryAll(byteArrayQR, sizeof(byteArrayQR));
+	//ws.binaryAll(byteArrayQR, sizeof(byteArrayQR));
 	// ws.textAll("QR_END");
 
 	// Set the whole payload to 0
 	memset(payloadQR, 0, sizeof(*payloadQR));
 }
 
-// Measure HC-SR04 via PCF8574 using pulseIn (high resolution but many I2C requests)
-unsigned long measureDistancePulseIn(uint8_t echo_pin)
-{
-	// Generate trigger pulse using PCF8574
-	pcf8574_0.digitalWrite(PCF_TRIG, LOW);
-	delayMicroseconds(2);
-	pcf8574_0.digitalWrite(PCF_TRIG, HIGH);
-	delayMicroseconds(20); // 10 us is ok but 20 showed better reults
-	pcf8574_0.digitalWrite(PCF_TRIG, LOW);
-
-	// Measure ECHO pulse duration
-	unsigned long duration = pcf8574_0.pulseIn(echo_pin, HIGH, 30000UL); // 30ms timeout
-	unsigned long distanceCm = duration / 29 / 2;
-
-	// Avoid overflow by validation of max depth
-	if (distanceCm > binDepthCm)
-		distanceCm = binDepthCm;
-
-	return distanceCm;
-}
-
-// Send measured percentage levels of bin filling to HMI
-void sendfillLevels()
-{
-	/*
-		This array contains the payload to send Fill Levels as binary
-		It is started by 'F','L' and followed by 4 bytes of each percentage
-		of trash bin in the order: Metal, Plastic, Cardboard/Paper, Glass
-	*/
-	uint8_t fillLevels[6];
-	fillLevels[0] = 'F';
-	fillLevels[1] = 'L';
-
-	Serial.print("FL");
-
-	// Mease 3 times each one and get average, and sends it immediatly
-	for (uint8_t i = 0; i < 4; ++i)
-	{
-		uint16_t sum = 0;
-		for (uint8_t j = 0; j < 3; ++j)
-		{
-			// Get the sum of fill percentages
-			// Commented for testing
-			// sum += 100 - (measureDistancePulseIn(hcsr04_echo_pins[i]) * 100 / binDepthCm);
-			sum = 1; // TESTING avoid over 0 division
-		}
-
-		// Get the average
-		fillLevels[i + 2] = sum / 3;
-		// fillLevels[i+2] = measureDistancePulseIn(hcsr04_echo_pins[i]);
-		Serial.printf("%d, ", fillLevels[i + 2]);
-	}
-
-	// Sends fill levels
-	ws.binaryAll(fillLevels, sizeof(fillLevels));
-}
 
 void setup()
 {
@@ -478,18 +334,6 @@ void setup()
 	// Turn on INBOARD LED
 	pinMode(GPIO_NORMAL_LED, OUTPUT);
 	digitalWrite(GPIO_NORMAL_LED, 1);
-
-	// HC-SR04 ECHO pins as input
-	for (uint8_t i = 0; i < 4; ++i)
-	{
-		pcf8574_0.pinMode(hcsr04_echo_pins[i], INPUT);
-	}
-	// All 4 ultrasonic have same TRIGGER PIN
-	pcf8574_0.pinMode(PCF_TRIG, OUTPUT);
-
-	// Turn off sensors
-	pcf8574_0.digitalWrite(PCF_TRIG, 0);
-
 	// Initi I2C with custom pins
 	Wire.begin(GPIO_I2C_SDA, GPIO_I2C_SCL);
 	// 400 KHz Max stable I2C velocity
@@ -512,26 +356,37 @@ void setup()
 
 	// Start Wifi
 	wifiService.init(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
-	initWebSocket();
+
+	// Start websocket and set callback for messages from HMI
+	wsService.init();
+
+	wsService.onMessage([&](const String &msg)
+						{ systemManager.handleExternalCommand(msg); });
 
 	// Start server
 	server.begin();
 
 	// Camera init
 	camera.init();
-	// Initialize PCF8574
-	if (!pcf8574_0.begin())
-	{
-		Serial.println(F("Could not initialize PCF8574!"));
-	}
-
 	// Initialize with default address 0x20 on the custom wire
 	if (!mcp.begin_I2C(0x20, &Wire))
 	{
-		Serial.println(F("Could not initialize MCP23017!"));
+		Serial.println(F("Could not initialize MCP23017! (0x20)"));
 	}
-	// Initialize ALL motors
+	// Initialize with address 0x21 on the custom wire
+	if (!mcp2.begin_I2C(0x21, &Wire))
+	{
+		Serial.println(F("Could not initialize MCP23017! (0x21)"));
+	}
+
 	systemManager.init();
+
+	// Initialize sensors
+	sensorHX711.begin();
+	binMetal.begin();
+	binPlastic.begin();
+	binPaper.begin();
+	binGlass.begin();
 	sensorCAPC.begin();
 	sensorINDU.begin();
 
@@ -551,48 +406,28 @@ void setup()
 	motorManager.addAxis('H', &axisHead);
 	motorManager.addAxis('I', &axisINDU);
 	motorManager.addAxis('C', &axisCAPC);
+	// Add fill level sensors to manager
+	fillManager.addSensor(&binMetal);
+	fillManager.addSensor(&binPlastic);
+	fillManager.addSensor(&binPaper);
+	fillManager.addSensor(&binGlass);
 
 	interfaceUI.begin();
-
-	// Initialize sensors
-	sensorHX711.begin();
 
 	delay(2000);
 }
 
 void loop()
 {
-	// If not identified is set to false in the last if-else block
-	identified = true;
-	if (camera.hasNewResult())
-	{
+    wsService.update();        // mantenimiento WS
+    systemManager.update();    // cerebro del sistema
 
-		lastPrediction = camera.getPrediction();
-		Serial.println("Prediction: " + lastPrediction);
+    if (Serial.available())
+    {
+        static char buffer[64];
+        size_t len = Serial.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
+        buffer[len] = '\0';
 
-		// Select materia type and increment corresponding file
-		selectFinalM();
-
-		if (identified == false)
-		{
-			// SI no pudo, intenta otra vez
-		}
-
-		// If it was the last, send signed QR
-		buildSendQRPayload();
-
-		delay(100);
-	}
-	ws.cleanupClients();
-	// Process commands from serial
-
-	systemManager.update();
-	if (Serial.available())
-	{
-		static char buffer[64];
-		size_t len = Serial.readBytesUntil('\n', buffer, sizeof(buffer) - 1);
-		buffer[len] = '\0';
-
-		systemManager.processCommand(buffer);
-	}
+        systemManager.processCommand(buffer);
+    }
 }

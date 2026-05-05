@@ -1,7 +1,7 @@
 #include "system_manager.h"
 
-SystemManager::SystemManager(MotorManager& mm, CommandRouter& r, SystemController& sc, InterfaceUI& ui)
-    : motorManager(mm), router(r), controller(sc), display(ui)
+SystemManager::SystemManager(MotorManager& mm, CommandRouter& r, SystemController& sc, InterfaceUI& ui, CameraService& cam, FillLevelManager& fm, WebSocketService& ws)
+    : motorManager(mm), router(r), controller(sc), display(ui), camera(cam), fillLevelManager(fm), wsService(ws)
 {
 }
 
@@ -13,13 +13,29 @@ void SystemManager::init()
 
 void SystemManager::update()
 {
-    // Allways update motors
     motorManager.update();
+
     SystemState state = controller.getState();
 
-    // ONLY UPDATE OLED IF THE SYSTEM IS NOT WORKING. THIS IS BECAUSE IT HAS PROBLEMS WITH THE MOTOR MOVEMENT.
-    if(state == SystemState::IDLE){
+    if(state == SystemState::IDLE)
+    {
         display.update();
+    }
+
+    // Camera
+    if(state == SystemState::CAPTURING)
+    {
+        if(camera.hasNewResult())
+        {
+            String result = camera.getPrediction();
+            Logger::info(("Prediction: " + result).c_str());
+
+            // lógica de clasificación (luego la movemos)
+            // selectFinalM();
+            // Aquí decides siguiente estado
+
+            controller.setState(SystemState::IDLE);
+        }
     }
 
     if(state == SystemState::HOMING)
@@ -55,4 +71,17 @@ void SystemManager::processCommand(char* cmd)
 SystemController& SystemManager::getController()
 {
     return controller;
+}
+
+void SystemManager::handleExternalCommand(const String& cmd)
+{
+    if(cmd == "CAPT")
+    {
+        controller.setState(SystemState::CAPTURING);
+        // aquí después llamaremos camera
+    }
+    else if(cmd == "FL")
+    {
+        fillLevelManager.sendLevels(wsService);
+    }
 }

@@ -49,6 +49,7 @@
 // Services
 #include "services/camera_service.h"
 #include "services/wifi_service.h"
+#include "services/websocket_service.h"
 
 // For sesors
 #include "drivers/capacitive_sensor.h"
@@ -58,3 +59,5 @@
 #include "protocols/sensor_protocol.h"
 #include "protocols/CalibrationProtocol.h"
 #include "drivers/hx711Sensor.h"
+#include "drivers/hcsr04_sensor.h"
+#include "manager/fill_level_manager.h"

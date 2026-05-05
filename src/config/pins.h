@@ -37,3 +37,10 @@
 // HX711 Sensor 
 #define HX711_DOUT_PIN 16
 #define HX711_SCK_PIN 17
+
+// HC-SR04 Ultrasonic Sensor
+#define PCF_TRIG 4 // Four HC-SR04 ultrasonic sensors, using same trigger pin, different echo
+#define binMetalEchoPin 12
+#define binPlasticEchoPin 13
+#define binPaperEchoPin 14
+#define binGlassEchoPin 15

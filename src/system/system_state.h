@@ -13,12 +13,7 @@ enum class SystemState
     WAIT_BACKEND,
     MOVE_SENSORS,
     READ_SENSORS,
-    DECIDE,
-    MOVE_BIN,
-    DUMP,
-    RETURN_HOME,
-    GENERATE_QR,
-    SHOW_QR
+    CAPTURING
 };
 
 enum class SystemError

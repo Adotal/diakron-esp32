@@ -1,12 +1,10 @@
 // --------------------------GENERAL SETTINGS--------------------------
 #define SERIAL_BAUD_RATE 115200
-#define version "1.4.2" // Version of the fimware DIAKRON Segregator. 
+//#define version "1.4.2" // Version of the fimware DIAKRON Segregator. 
 
 // -------------------------PIN DEFINITION & CONSTANTS--------------------------
 #define CAMERA_MODEL_AI_THINKER
 #define BYTES_QR 88
-// Four HC-SR04 ultrasonic sensors, using same trigger pin, different echo
-#define PCF_TRIG P4
 // The can depth in centimeters (cm) to measure filling levels
 #define binDepthCm 50
 
