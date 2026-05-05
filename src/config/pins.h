@@ -33,3 +33,7 @@
 
 
 #define SERVICE_BUTTON_PIN 26
+
+// HX711 Sensor 
+#define HX711_DOUT_PIN 16
+#define HX711_SCK_PIN 17

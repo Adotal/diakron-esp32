@@ -1,6 +1,6 @@
 #include "sensor_protocol.h"
 #include <string.h>
-#include <Arduino.h> // O <string> si es C++ estándar
+#include <Arduino.h>
 
 SensorProtocol::SensorProtocol(SensorManager& sm) : manager(sm){}
 

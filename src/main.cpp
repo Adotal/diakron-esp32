@@ -40,7 +40,7 @@ stepper_28byj motorSensorCAPC(interfaceI2C, CAPC_STEP_PIN_1, CAPC_STEP_PIN_2, CA
 // =====================
 CapacitiveSensor sensorCAPC(interfaceI2C, GPIO_CAPC);
 InductiveSensor sensorINDU(interfaceI2C, GPIO_INDU);
-
+HX711Sensor sensorHX711(HX711_DOUT_PIN, HX711_SCK_PIN);
 // =====================
 // Limit switches
 // =====================
@@ -80,10 +80,11 @@ SensorManager sensorManager;
 MotionProtocol motionP(motorManager, sysController);
 StatusProtocol statusP(sysController);
 SensorProtocol sensorP(sensorManager);
+CalibrationProtocol calibrationP(sensorHX711);
 // =====================
 // Router
 // =====================
-CommandRouter router(motionP, statusP, sensorP);
+CommandRouter router(motionP, statusP, sensorP, calibrationP);
 
 // =====================
 // System Manager

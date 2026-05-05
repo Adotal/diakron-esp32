@@ -55,3 +55,5 @@
 #include "core/sensor.h"
 #include "manager/sensor_manager.h"
 #include "protocols/sensor_protocol.h"
+#include "protocols/CalibrationProtocol.h"
+#include "drivers/hx711Sensor.h"

@@ -2,7 +2,6 @@
 
 SensorManager::SensorManager() : count(0) {}
 
-// Recibe directamente un Sensor* en lugar de void*
 bool SensorManager::addSensor(char id, Sensor *sensor)
 {
     if (count >= MAX_SENSORS_PER_MANAGER)
@@ -12,7 +11,6 @@ bool SensorManager::addSensor(char id, Sensor *sensor)
     return true;
 }
 
-// Retorna un Sensor* en lugar de void*
 Sensor *SensorManager::getSensor(char id)
 {
     for (uint8_t i = 0; i < count; i++)
